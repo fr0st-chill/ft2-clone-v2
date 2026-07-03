@@ -192,6 +192,8 @@
 	const float *fSinc_2 = v->fSincLUT + ((lutPhase+1) << SINC8_TAPS_BITS); \
 	\
 	float fSum = 0.0f; \
+	\
+	/* I hope your compiler vectorizes this well ;) */ \
 	for (int32_t j = 0; j < SINC8_TAPS; j++) \
 	{ \
 		/* do linear interpolation between phases */ \
@@ -216,6 +218,8 @@
 	const float *fSinc_2 = v->fSincLUT + ((lutPhase+1) << SINC16_TAPS_BITS); \
 	\
 	float fSum = 0.0f; \
+	\
+	/* I hope your compiler vectorizes this well ;) */ \
 	for (int32_t j = 0; j < SINC16_TAPS; j++) \
 	{ \
 		/* do linear interpolation between phases */ \
