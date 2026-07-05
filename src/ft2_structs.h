@@ -4,11 +4,6 @@
 #include <stdbool.h>
 #include "ft2_header.h"
 
-typedef struct cpu_t
-{
-	bool hasSSE, hasSSE2;
-} cpu_t;
-
 typedef struct editor_t
 {
 	UNICHAR *binaryPathU, *tmpFilenameU, *tmpInstrFilenameU; // used by saving/loading threads
@@ -76,7 +71,6 @@ typedef struct cursor_t
 	int8_t object;
 } cursor_t;
 
-extern cpu_t cpu;
 extern editor_t editor;
 extern ui_t ui;
 extern cursor_t cursor;

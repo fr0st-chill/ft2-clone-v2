@@ -911,183 +911,40 @@ void sampleLine(int32_t x1, int32_t x2, int32_t y1, int32_t y2)
 	}
 }
 
+// these min/max routines hugely benefit from SIMD instruction usage (Visual Studio 2026 does this)
+
 static void getMinMax16(const void *p, uint32_t scanLen, int16_t *min16, int16_t *max16)
 {
-#if defined _WIN32 || defined __amd64__ || (defined __i386__ && defined __SSE2__)
-	if (cpu.hasSSE2)
+	int16_t minVal =  32767;
+	int16_t maxVal = -32768;
+
+	const int16_t *ptr16 = (const int16_t *)p;
+	for (uint32_t i = 0; i < scanLen; i++)
 	{
-		/* Taken with permission from the OpenMPT project (and slightly modified).
-		**
-		** SSE2 implementation for min/max finder, packs 8*int16 in a 128-bit XMM register.
-		** scanLen = How many samples to process
-		*/
-		const int16_t *p16;
-		uint32_t scanLen8;
-		const __m128i *v;
-		__m128i minVal, maxVal, minVal2, maxVal2, curVals;
-
-		// Put minimum / maximum in 8 packed int16 values
-		minVal = _mm_set1_epi16(32767);
-		maxVal = _mm_set1_epi16(-32768);
-
-		scanLen8 = scanLen / 8;
-		if (scanLen8 > 0)
-		{
-			v = (__m128i *)p;
-			p = (const __m128i *)p + scanLen8;
-
-			while (scanLen8--)
-			{
-				curVals = _mm_loadu_si128(v++);
-				minVal = _mm_min_epi16(minVal, curVals);
-				maxVal = _mm_max_epi16(maxVal, curVals);
-			}
-
-			/* Now we have 8 minima and maxima each.
-			** Move the upper 4 values to the lower half and compute the minima/maxima of that. */
-			minVal2 = _mm_unpackhi_epi64(minVal, minVal);
-			maxVal2 = _mm_unpackhi_epi64(maxVal, maxVal);
-			minVal = _mm_min_epi16(minVal, minVal2);
-			maxVal = _mm_max_epi16(maxVal, maxVal2);
-
-			/* Now we have 4 minima and maxima each.
-			** Move the upper 2 values to the lower half and compute the minima/maxima of that. */
-			minVal2 = _mm_shuffle_epi32(minVal, _MM_SHUFFLE(1, 1, 1, 1));
-			maxVal2 = _mm_shuffle_epi32(maxVal, _MM_SHUFFLE(1, 1, 1, 1));
-			minVal = _mm_min_epi16(minVal, minVal2);
-			maxVal = _mm_max_epi16(maxVal, maxVal2);
-
-			// Compute the minima/maxima of the both remaining values
-			minVal2 = _mm_shufflelo_epi16(minVal, _MM_SHUFFLE(1, 1, 1, 1));
-			maxVal2 = _mm_shufflelo_epi16(maxVal, _MM_SHUFFLE(1, 1, 1, 1));
-			minVal = _mm_min_epi16(minVal, minVal2);
-			maxVal = _mm_max_epi16(maxVal, maxVal2);
-		}
-
-		p16 = (const int16_t *)p;
-		while (scanLen-- & 7)
-		{
-			curVals = _mm_set1_epi16(*p16++);
-			minVal = _mm_min_epi16(minVal, curVals);
-			maxVal = _mm_max_epi16(maxVal, curVals);
-		}
-
-		*min16 = (int16_t)_mm_cvtsi128_si32(minVal);
-		*max16 = (int16_t)_mm_cvtsi128_si32(maxVal);
+		const int16_t smp16 = ptr16[i];
+		if (smp16 < minVal) minVal = smp16;
+		if (smp16 > maxVal) maxVal = smp16;
 	}
-	else
-#endif
-	{
-		// non-SSE version (really slow for big samples while zoomed out)
-		int16_t minVal =  32767;
-		int16_t maxVal = -32768;
 
-		const int16_t *ptr16 = (const int16_t *)p;
-		for (uint32_t i = 0; i < scanLen; i++)
-		{
-			const int16_t smp16 = ptr16[i];
-			if (smp16 < minVal) minVal = smp16;
-			if (smp16 > maxVal) maxVal = smp16;
-		}
-
-		*min16 = minVal;
-		*max16 = maxVal;
-	}
+	*min16 = minVal;
+	*max16 = maxVal;
 }
 
 static void getMinMax8(const void *p, uint32_t scanLen, int8_t *min8, int8_t *max8)
 {
-#if defined _WIN32 || defined __amd64__ || (defined __i386__ && defined __SSE2__)
-	if (cpu.hasSSE2)
+	int8_t minVal =  127;
+	int8_t maxVal = -128;
+
+	const int8_t *ptr8 = (const int8_t *)p;
+	for (uint32_t i = 0; i < scanLen; i++)
 	{
-		/* Taken with permission from the OpenMPT project (and slightly modified).
-		**
-		** SSE2 implementation for min/max finder, packs 16*int8 in a 128-bit XMM register.
-		** scanLen = How many samples to process
-		*/
-		const int8_t *p8;
-		uint32_t scanLen16;
-		const __m128i *v;
-		__m128i xorVal, minVal, maxVal, minVal2, maxVal2, curVals;
-
-		// Put minimum / maximum in 8 packed int16 values (-1 and 0 because unsigned)
-		minVal = _mm_set1_epi8(-1);
-		maxVal = _mm_set1_epi8(0);
-
-		// For signed <-> unsigned conversion (_mm_min_epi8/_mm_max_epi8 is SSE4)
-		xorVal = _mm_set1_epi8(0x80);
-
-		scanLen16 = scanLen / 16;
-		if (scanLen16 > 0)
-		{
-			v = (__m128i *)p;
-			p = (const __m128i *)p + scanLen16;
-
-			while (scanLen16--)
-			{
-				curVals = _mm_loadu_si128(v++);
-				curVals = _mm_xor_si128(curVals, xorVal);
-				minVal = _mm_min_epu8(minVal, curVals);
-				maxVal = _mm_max_epu8(maxVal, curVals);
-			}
-
-			/* Now we have 16 minima and maxima each.
-			** Move the upper 8 values to the lower half and compute the minima/maxima of that. */
-			minVal2 = _mm_unpackhi_epi64(minVal, minVal);
-			maxVal2 = _mm_unpackhi_epi64(maxVal, maxVal);
-			minVal = _mm_min_epu8(minVal, minVal2);
-			maxVal = _mm_max_epu8(maxVal, maxVal2);
-
-			/* Now we have 8 minima and maxima each.
-			** Move the upper 4 values to the lower half and compute the minima/maxima of that. */
-			minVal2 = _mm_shuffle_epi32(minVal, _MM_SHUFFLE(1, 1, 1, 1));
-			maxVal2 = _mm_shuffle_epi32(maxVal, _MM_SHUFFLE(1, 1, 1, 1));
-			minVal = _mm_min_epu8(minVal, minVal2);
-			maxVal = _mm_max_epu8(maxVal, maxVal2);
-
-			/* Now we have 4 minima and maxima each.
-			** Move the upper 2 values to the lower half and compute the minima/maxima of that. */
-			minVal2 = _mm_srai_epi32(minVal, 16);
-			maxVal2 = _mm_srai_epi32(maxVal, 16);
-			minVal = _mm_min_epu8(minVal, minVal2);
-			maxVal = _mm_max_epu8(maxVal, maxVal2);
-
-			// Compute the minima/maxima of the both remaining values
-			minVal2 = _mm_srai_epi16(minVal, 8);
-			maxVal2 = _mm_srai_epi16(maxVal, 8);
-			minVal = _mm_min_epu8(minVal, minVal2);
-			maxVal = _mm_max_epu8(maxVal, maxVal2);
-		}
-
-		p8 = (const int8_t *)p;
-		while (scanLen-- & 15)
-		{
-			curVals = _mm_set1_epi8(*p8++ ^ 0x80);
-			minVal = _mm_min_epu8(minVal, curVals);
-			maxVal = _mm_max_epu8(maxVal, curVals);
-		}
-
-		*min8 = (int8_t)(_mm_cvtsi128_si32(minVal) ^ 0x80);
-		*max8 = (int8_t)(_mm_cvtsi128_si32(maxVal) ^ 0x80);
+		const int8_t smp8 = ptr8[i];
+		if (smp8 < minVal) minVal = smp8;
+		if (smp8 > maxVal) maxVal = smp8;
 	}
-	else
-#endif
-	{
-		// non-SSE version (really slow for big samples while zoomed out)
-		int8_t minVal =  127;
-		int8_t maxVal = -128;
 
-		const int8_t *ptr8 = (const int8_t *)p;
-		for (uint32_t i = 0; i < scanLen; i++)
-		{
-			const int8_t smp8 = ptr8[i];
-			if (smp8 < minVal) minVal = smp8;
-			if (smp8 > maxVal) maxVal = smp8;
-		}
-
-		*min8 = minVal;
-		*max8 = maxVal;
-	}
+	*min8 = minVal;
+	*max8 = maxVal;
 }
 
 // for scanning sample data peak where loopEnd+MAX_RIGHT_TAPS is within scan range (fixed interpolation tap samples)

@@ -52,17 +52,14 @@ static void disableWasapi(void);
 int main(int argc, char *argv[])
 {
 #ifdef _WIN32 // test for SSE/SSE2 presence very first, to make sure no SSE/SSE2 code is attempted to be ran
-	cpu.hasSSE = SDL_HasSSE();
-	cpu.hasSSE2 = SDL_HasSSE2();
-
-	if (!cpu.hasSSE)
+	if (!SDL_HasSSE())
 	{
 		MessageBoxA(NULL, "Your computer's processor doesn't have the SSE instruction set " \
 			"which is needed for this program to run. Sorry!", "Error", MB_ICONEXCLAMATION);
 		return 0;
 	}
 
-	if (!cpu.hasSSE2)
+	if (!SDL_HasSSE2())
 	{
 		MessageBoxA(NULL, "Your computer's processor doesn't have the SSE2 instruction set " \
 			"which is needed for this program to run. Sorry!", "Error", MB_ICONEXCLAMATION);
