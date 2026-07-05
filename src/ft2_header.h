@@ -14,11 +14,11 @@
 #endif
 #include "ft2_replayer.h"
 
-#define PROG_VER_STR "2.20"
+#define PROG_VER_STR "2.21"
 
 // do NOT change these! It will only mess things up...
 
-#define FT2_VBLANK_HZ 70.086302895323 /* nominal, 640x400 @ 70Hz */
+#define FT2_VBLANK_HZ 70.086302895323 /* VGA 640x400 @ 70Hz */
 #define SCREEN_W 632
 #define SCREEN_H 400
 #define VBLANK_HZ 60
